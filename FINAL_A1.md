@@ -9,14 +9,14 @@ What you will learn in this article is how to use Jupyter Notebook to query, man
 There are two parts to this process:
 
 - Setting up the environment and loading sample data
-- Creating Python Notebook and integrating with PostgreSQL
+- Creating a Python notebook and integrating with PostgreSQL Data
 
 ## Set Up Environment and Load Sample Data
 
 The first step is to prepare the environment. You will need to have the following up and running on your workstation before moving forward:
 
-- PostgreSQL 14.3 (or recent version)
-- Jupyter Notebook (recent version)
+- PostgreSQL 14.3 (or more recent version)
+- Jupyter Notebook (or more recent version)
 
 Setting up the environment may take a fair amount of work. In this tutorial, both Jupyter Notebook and Postgres were set up on the same Ubuntu 22.04 LTS (Jammy Jellyfish) VM for simplicity.
 
@@ -36,7 +36,7 @@ sudo -i -u postgres psql -d sampledb < create_tables.sql
 sudo -i -u postgres psql -d sampledb < import.sql
 ```
 
-The first command creates the `sampledb` database. The second command creates the schema and tables and the third copies the rows from the CSV files into the database tables. In all statements, `psql`, the terminal-based front-end for PostgreSQL, is used to execute the commands against the DB. Ensure that you have a user with full permissions on this database; in this case the user was `postgres`.
+The first command creates the `sampledb` database. The second command creates the schema and tables and the third copies the rows from the CSV files into the database tables. In all statements, `psql`, the terminal-based front-end for PostgreSQL, is used to execute the commands against the DB. If you're using an existing configuration, ensure that you have a user with full permissions on this database; with a new installation, the default user, `postgres`, will already have these.
 
 ### Jupyter Notebook Set Up
 
@@ -56,10 +56,8 @@ jupyter notebook
 
 When you launch Jupyter Notebook, you will see the following options under `New`. The notebook you will soon create will be a Python 3 notebook:
 
-![New Notebook!](https://i.imgur.com/frWdcRm.png)
-
-<!-- un-annotated version @ [Imgur](https://i.imgur.com/nK9IjqT.png)
--->
+![New Notebook](https://i.imgur.com/uYkLgP1.png)
+![New Notebook](https://i.imgur.com/Z7XGJni.png)
 
 Quit Jupyter Notebook and install the [IPython SQL extension](https://github.com/catherinedevlin/ipython-sql), which will allow you to use SQL statements from within Jupyter Notebook. The command to install is:
 
@@ -67,7 +65,7 @@ Quit Jupyter Notebook and install the [IPython SQL extension](https://github.com
 pip install ipython-sql
 ```
 
-Now You also need to install the [pgspecial package](https://github.com/dbcli/pgspecial "Go To Repo"), which allows you to execute meta-commands against the PostgreSQL instance, such as `\l` (list all databases), `\dt` (list all tables), and `\dn` (list all schemas) etc.
+You also need to install the [pgspecial package](https://github.com/dbcli/pgspecial), which allows you to execute meta-commands against the PostgreSQL instance, such as `\l` (list all databases), `\dt` (list all tables), and `\dn` (list all schemas).
 
 ```shell
 pip install pgspecial
@@ -89,9 +87,7 @@ pip install seaborn
 
 You should recognize these three well known Python libraries: [pandas](https://pandas.pydata.org/) is used for its versatile and powerful DataFrames, while [Matplotlib](https://matplotlib.org/) and [Seaborn](https://seaborn.pydata.org/) are used to create impactful charts and other visualizations.
 
----
-
-## Create Python Notebook and Integrate PostgreSQL Data
+## Creating A Python Notebook and Integrating with PostgreSQL Data
 
 With the environment now prepared, launch Jupyter Notebook and create a new Python 3 Notebook. Navigate to the **New** button on the right, click it, and then select **Python 3 (ipykernel)** or similar.
 
@@ -105,7 +101,7 @@ Load the extension with the following magic command in a new cell in the noteboo
 %load_ext sql
 ```
 
-**Magic commands**, or **magics**, are built-in enhancements to the kernel that add special functionality to the notebook. For Python notebooks, they are preceded by a `%` if on one line of code (line magic), or `%%` if on multiple lines of code (cell magics).
+**Magic commands**, or **magics**, are built-in enhancements to the kernel that add special functionality to the notebook. For Python notebooks, they are preceded by `%` if on one line of code (line magic), or `%%` if on multiple lines of code (cell magic).
 
 Connect to your PostgreSQL database with the following magic command:
 
@@ -127,14 +123,18 @@ Where:
 - `host` is the server name, which is `localhost`
 - `database` is the database name, `sampledb`
 
-The username you use in the connection string _must_ have the permissions to `SELECT`, `INSERT`, `UPDATE`, and `DELETE` rows in the `sampledb`. Remember that you need to execute the code in the notebook cell before the database connection can be made.
+The username you use in the connection string _must_ have the permissions to `SELECT`, `INSERT`, `UPDATE`, and `DELETE` rows in `sampledb`. Remember that you need to execute the code in the notebook cell before the database connection can be made.
 
-Now try some meta-commands. Meta-commands allow you to perform administrative type functions against the Postgres instance easily and quickly. While only three are shown below, there are [a lot more](https://www.postgresql.org/docs/current/app-psql.html):
+Now try some meta-commands. Meta-commands allow you to perform administrative type functions against the Postgres instance easily and quickly. While only three are shown below, there are [a lot more](https://www.postgresql.org/docs/current/app-psql.html) :
+
+```text
+%sql \l
+%sql \dn
+%sql \dt healthstats.*
+```
 
 ![PostgreSQL Meta-Commands](https://i.imgur.com/hz6ghwP.png)
-
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/zCDCmIX.png)
--->
+![PostgreSQL Meta-Commands](https://i.imgur.com/zCDCmIX.png)
 
 Next, you will run a simple `SELECT` command against the database:
 
@@ -145,9 +145,7 @@ SELECT * FROM HealthStats.TobaccoAge LIMIT 10
 If your connection to the database was successful and the sample data was imported correctly, you should see ten rows returned from the `HealthStats.TobaccoAge` table:
 
 ![IPython SQL Extension Query Results](https://i.imgur.com/veWURO7.png)
-
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/KVFs07y.png)
--->
+![IPython SQL Extension Query Results](https://i.imgur.com/KVFs07y.png)
 
 Query results are loaded as a list. It's good practice to limit your rows during testing so you don't use too much memory.
 
@@ -165,10 +163,8 @@ RETURNING *
 DELETE FROM HealthStats.TobaccoAge WHERE "tobaccoage"."Location" = 'TEST'
 ```
 
-![DML STATEMENTS](https://i.imgur.com/2JMJRZr.png)
-
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/zc1NjjX.png)
--->
+![DML statements](https://i.imgur.com/2JMJRZr.png)
+![DML statements](https://i.imgur.com/zc1NjjX.png)
 
 Recall that the `%%sql` syntax indicates cell magic, and is required for multiple lines of code.
 
@@ -191,22 +187,17 @@ LIMIT 10
 
 This is a simple `INNER JOIN` on two tables from the database. When you execute that query, it will return the healthy life expectancy at birth in years for both sexes, as well as the number of medical doctors per ten thousand people, for all countries in the year 2010:
 
-![INNER JOIN QUERY](https://i.imgur.com/YUuT57q.png)
+![INNER JOIN query](https://i.imgur.com/YUuT57q.png)
+![INNER JOIN query](https://i.imgur.com/tVcjg6m.png)
 
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/tVcjg6m.png)
--->
+It's possible to return the results of a SQL extension magic command as a pandas DataFrame. Declare a new variable, which in this case is `result`, use the assignment operator `<<`, and then define the query that will return the rows. Once it executes successfully, the rows will be stored in the variable declared to the left of the assignment operator. This variable will have a `DataFrame()` method that returns the rows as a pandas DataFrame once invoked.
 
-This SQL extension also works well with pandas DataFrames. It is possible to return the results of a SQL extension magic command as a pandas DataFrame:
+![SQL extension result to DataFrame](https://i.imgur.com/mgbuZ79.png)
+![SQL extension result to DataFrame](https://i.imgur.com/gHgrGlB.png)
 
-![SQL EXTENSION RESULT TO DATAFRAME](https://i.imgur.com/mgbuZ79.png)
+Above, the DataFrame in the `result` variable is stored as `df`. The `df` DataFrame can now be treated as any regular DataFrame.
 
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/gHgrGlB.png)
--->
-
-Once the result is returned, the local variable can be stored as `df`
-and treated as a regular dataframe by invoking the `DataFrame()` method of variable `result`.
-
-DDL operations such as `CREATE VIEW` are also possible. You will now re-write the `INNER JOIN` query to include two additional tables, and save it as a new `VIEW` on the `HealthStats` schema in the `sampledb` database:
+DDL operations such as `CREATE VIEW` are also possible. You will now rewrite the `INNER JOIN` query to include two additional tables, and save it as a new `VIEW` on the `HealthStats` schema in the `sampledb` database:
 
 ```sql
 CREATE VIEW HealthStats."STATS_2010"
@@ -231,9 +222,7 @@ ORDER BY a."Location"
 ```
 
 ![`INNER JOIN` on three tables](https://i.imgur.com/zezGIbn.png)
-
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/atvoArO.png)
--->
+![`INNER JOIN` on three tables](https://i.imgur.com/atvoArO.png)
 
 You can now close the current PostgreSQL database connection with the following code. The first line uses a SQL Extension magic command to return all the current database connections, and the second line terminates all the database connections returned from the first:
 
@@ -269,7 +258,7 @@ This approach may be the most popular way to integrate Postgres with Jupyter Not
 [('Afghanistan', 2017, 'Population using at least basic drinking-water services (%)', 57.32), ('Afghanistan', 2016, 'Population using at least basic drinking-water services (%)', 54.84)...
 ```
 
-That may not look like much, but Python scripts that integrate Postgres data can accomplish great things! Not only can you use pandas to create DataFrames out of the raw data for querying and manipulation, but you can leverage other powerful libraries such as such as Seaborn and Matplotlib for quantitative analysis and visualizations.
+That may not look like much, but Python scripts that integrate Postgres data can accomplish great things. Not only can you use pandas to create DataFrames out of the raw data for querying and manipulation, but you can leverage other powerful libraries such as Seaborn and Matplotlib for quantitative analysis and visualizations.
 
 Re-writing the above Python script to create three plots:
 
@@ -324,20 +313,14 @@ Essentially, this code is importing the pandas, Matplotlib, and Seaborn librarie
 These plots can be used as part of your EDA to investigate likely relationships between the variables in the dataset.
 
 ![Scatter plot using PostgreSQL data](https://i.imgur.com/iBI8BK0.png)
+![Scatter plot using PostgreSQL data](https://i.imgur.com/BMapLas.png)
 
-<!-- non-annotated version @ [Imgur](https://i.imgur.com/BMapLas.png)
--->
+It appears that for the World Health Statistics 2010 data set, there is a clear positive correlation between the healthy age life expectancy and medical doctors per ten thousand, as well as with the percentage of population with basic drinking water services. There's a weaker correlation between healthy age life expectancy and the prevalence of tobacco smoking in ages fifteen and over.
 
-It appears that for the World Health Statistics 2010 data set, there is a clear positive correlation between the healthy age life expectancy and medical doctors per ten thousand, as well as with the percentage of population with basic drinking water services. There's a weaker correlation between healthy age life expectancy and the prevalence of tobacco smoking in fifteen and over.
-
-These are elementary insights but illustrate the potential of these integrations. As the data (both live and static) in your Postgres database increases over time, you can stay abreast of how these relationships evolve, and even possibly discover new ones.
-
----
+These are elementary insights, but illustrate the potential of these integrations. As the data in your Postgres database increases over time, you can stay abreast of how these relationships evolve, and even possibly discover new ones.
 
 ## Wrapping Up
 
 In this article you learned how to integrate Jupyter Notebook with PostgreSQL by using the IPython SQL extension magic commands `%sql` and `%%sql` to connect to a PostgreSQL database to perform DML and DDL operations from a notebook, using the `pgspecial` package to perform meta-commands against a PostgreSQL database from a notebook, and using a Python script that leverages the power of the pandas, Seaborn, and Matplotlib libraries to extract data from PostgreSQL for visualization and analysis in a notebook.
 
-This is just skimming the surface. Using Jupyter Notebook, you can potentially implement entire data science workflows using live or static PostgreSQL data. In machine learning, for example, you can perform everything from data wrangling and data cleaning to training and testing machine learning models based on PostgreSQL data.
-
-Thanks for reading and good luck in all your data science adventures!
+This is just skimming the surface of what's possible with Jupyter Notebook. Using Jupyter Notebook, you can potentially implement entire data science workflows using live or static PostgreSQL data, making it an essential tool for many data scientists.
