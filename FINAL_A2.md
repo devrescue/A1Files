@@ -1,0 +1,513 @@
+# Build your own PDF app using Python and PDF SDK
+
+Originally developed by Adobe Systems Incorporated in the 1990s, PDF (Portable Document Format) has emerged as one of the most popular formats for electronic documents in the world. [Statistics of Common Crawl Monthly Archives](https://commoncrawl.github.io/cc-crawl-statistics/plots/mimetypes) reports that PDF is second only to the HTML media type in its crawled content of the web. At the [PDF Technical Conference 2015](https://youtu.be/5Axw6OGPYHw?t=1284), Phil Ydens, VP Engineering for Adobe Document Cloud, estimated that there were 2.5 Trillion and growing PDF files in existence.
+
+## What Is Foxit?
+
+Foxit is a company that specializes in the PDF file format. With support for most popular OS platforms and programming languages, its PDF SDK is a quick and painless way for you to incorporate a range of format-specific PDF operations into your software project.
+
+The Foxit PDF SDK for Windows provides a wrapper library for the Python 2 and 3 programming languages on the Windows OS. For Python 3, the wrapper library is called `FoxitPDFSDKPython3` by name and it allows the full power of the Foxit PDF SDK to be harnessed from within Python code. All PDF specific functions including conversion from other formats to PDF, PDF forms, formatting, annotation, digital signing, highlighting, image conversion, barcode, encryption and more are presented by the wrapper library as a series of Python functions which are invoked as needed.
+
+The wide use of the PDF standard means there is a high probability that an app you are planning will require PDF handling built in. This is especially true if your app will publish reports and invoices or distribute documentation and creative works.
+
+In this article you'll use the Foxit PDF SDK in a Python Flask web app that will demonstrate a common use case for the PDF format: publishing a report. You will:
+
+- Publish a report in HTML format from sample sales data in a flat file on disk.
+- Convert the HTML page to the PDF file format.
+
+Generally speaking, conversion from HTML to PDF is used to save web content for offline use and for archiving purposes. Once converted to PDF, the document maintains its original integrity and the additional PDF-specific features and enhancements previously mentioned can be applied. This is what makes the PDF format the preferred choice for most scenarios.
+
+## Set Up The Environment
+
+The first step is to prepare the environment. You'll need the following:
+
+- A Workstation or VM running Windows 10 OS (Windows 11 may work also)
+- (Optional) Microsoft Visual C++ Redistributable packages for Visual Studio 2015, 2017, 2019, and 2022, 64-bit and 32-bit versions
+- Python 3.9 (or more recent version)
+- Python Flask version 2.2.2 (or more recent)
+- Other required Python libraries
+- VS Code or other code editor
+
+Because the Python wrapper library for the Foxit PDF SDK for Windows is being used, you must have Windows 10 installed on the workstation or VM first to continue. The code and environment setup was not tested on Windows 11 but may work also.
+
+Once Windows 10 is up and running, you can download and install the Microsoft Visual C++ Redistributable from the [official Microsoft Site](https://docs.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist?view=msvc-170) as an optional step. This may not be necessary, but if it isn't installed some Python libraries may not work.
+
+Next, consult the [Python documentation](https://wiki.python.org/moin/BeginnersGuide/Download) for instructions to download and install Python on Windows. Installing Python in this way also installs `pip` the Python package manager. Python 3.9 is preferred but a more recent version may work as well. You'll also need to manually [add Python and pip to the system path](https://www.easytweaks.com/set-add-python-to-path/).
+
+The Foxit PDF SDK prefers a single version of Python on the system and also that the default executable for Python 3 be `python3`. The latter can be done by creating a **symbolic link** at the Windows Command line with the following:
+
+```bash
+mklink "X:\path\to\Python\Python39\python3.exe" "X:\path\to\Python\Python39\python.exe"
+```
+
+The first parameter is the symbolic link and the second is the target directory for which the link will be created. Note that the only difference between the two is the actual name of the executable. Please replace the above with the real path to the installed instance of python.exe. If properly created, using the command `python3 --version` at the command line should give something similar to the following:
+
+```bash
+X:\scripts>python3 --version
+Python 3.9.0
+```
+
+The next step is to install Flask which is a micro web framework written in Python. [The Flask Framework Documentation](https://flask.palletsprojects.com/en/2.2.x/installation/#) lists the instructions, but installing Flask is usually as simple as issuing the following command:
+
+```bash
+pip install Flask
+```
+
+Next install the Python wrapper library for the Foxit PDF SDK :
+
+```bash
+pip install FoxitPDFSDKPython3
+```
+
+And finally install all of the other Python libraries that will be needed:
+
+```bash
+pip install cryptography
+pip install pyOpenSSL
+pip install pywin32
+pip install uuid
+pip install pandas
+```
+
+The first four third-party libraries are needed by the SDK. Pandas will be used to extract and manipulate rows from the CSV file.
+
+Finally, download a code editor that recognizes Python syntax. For this article [VS Code](https://code.visualstudio.com/) was used. Now it's time to begin writing the Flask app!
+
+## Create the Flask App
+
+The Flask app requires two additional items that can only be provided by Foxit: the license information (the _sn_ and the _key_) and the PDF to HTML engine package:
+
+Download the **Python Library version** of the Foxit PDF SDK from the [Foxit Developers Download page](https://developers.foxit.com/download/).
+
+<!---ANNOTATED-->
+
+![Foxit PDF SDK For Windows Python Version](https://i.imgur.com/HHTi4wR.png)
+
+<!---NON-ANNOTATED-->
+
+![Foxit PDF SDK For Windows Python Version](https://i.imgur.com/dKPb2og.png)
+
+The Python library for the SDK was already installed via `pip` but the downloaded ZIP archive will contain the _sn_ and the _key_, which will be needed shortly. This is a limited trial version of the SDK for development only. You'll need to contact [Foxit sales](https://developers.foxit.com/contact/) for a production license.
+
+The next critical piece that isn't provided in the SDK is the **HTML to PDF engine package**. The PDF SDK will use this package to convert the HTML page to PDF format. Specifically, you'll require the file _fxhtml2pdf.exe_ and its dependencies. The only way to get this package is to create a Support Ticket with the [Foxit Support Center](https://kb.foxitsoftware.com/hc/en-us). Indicate that you are working on a Python web app and that you require the _fxhtml2pdf.exe_ engine to test the HTML to PDF function. The Support Engineers are usually responsive and should get back to you in a day or two with a link to a ZIP archive with the required files. Keep in mind that the copy you'll receive is an _Evaluation Version_, you'll have to pay for a Production license if you intend to use this commercially.
+
+Now you're going to build out the app by adding functionality.
+
+### Initialize the Foxit PDF SDK
+
+The first thing the app will do is initialize the Foxit PDF SDK. This is done to ensure that the SDK is loading properly in the app.
+
+Locate the _gsdk_key.txt_ and _gsdk_sn.txt_ in the ZIP archive that was downloaded. It should be in the _FoxitPDFSDKPython2_ sub-folder or similar:
+
+<!---ANNOTATED-->
+
+![Retrieve the SN and KEY for the SDK](https://i.imgur.com/eND3Mob.png)
+
+<!--NON-ANNOTATED-->
+
+![Retrieve the SN and KEY for the SDK](https://i.imgur.com/eWX5VrG.png)
+
+Retrieve the _sn_ and _key_ values from these files and keep them handy.
+
+The [Flask Quickstart](https://flask.palletsprojects.com/en/2.2.x/quickstart/) gives a great overview of the framework features to be used going forward which include: debug, routing, HTTP methods, and rendering templates. Please consult the Quickstart for further explanations.
+
+Next, create a new folder for the Python app. In that folder, create a new Python file called `app.py` and another folder called `templates`. In the `templates` folder create another new file called `loadSDK.html`. When complete the folder structure should look like the following:
+
+<!---ANNOTATED-->
+
+![Flask App Folder Structure](https://i.imgur.com/yYERfIY.png)
+
+<!--NON-ANNOTATED-->
+
+![Flask App Folder Structure](https://i.imgur.com/ZcsvyhP.png)
+
+The `__pycache__` folder is auto-created by Flask and the `app.py` file will contain the following code to initialize the SDK:
+
+```python
+from flask import Flask
+from FoxitPDFSDKPython3 import *
+
+app = Flask(__name__)
+
+sn = r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key = r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+key =  key + r"XXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+@app.route('/')
+def initPdfSdk():
+    sdkloaded = None
+    code = Library.Initialize(sn, key)
+    if code != e_ErrSuccess:
+        sdkloaded = False
+    else:
+        sdkloaded = True
+    return render_template("loadSDK.html", sdkloaded = sdkloaded)
+
+```
+
+Begin with the mandatory imports for Flask and the Foxit PDF SDK (FoxitPDFSDKPython3).
+
+The `@app.route('/')` decorator tells the Flask framework the specific URL that will trigger the function defined immediately after it, which in this case is `initPdfSdk()`.
+
+Substitute the `sn` and `key` in the above code with the _sn_ and _key_ retrieved from the ZIP archive. The `sn` value is a lot shorter than the very long `key` value. This is why it was broken up into pieces, which are appended in sequence for readability, as seen above.
+
+The `Library.Initialize()` function will load the SDK, but it will only be successful if the `sn` and `key` are valid and correctly transcribed. If the return value from this call isn't equal to `e_ErrSuccess` then the SDK will fail to load and you'll need to retrace your steps. Remember that this is an evaluation copy of the license so it will expire after the `ExpireDate` indicated in the _gsdk_key.txt_ file.
+
+The `loadSDK.html` file is a Jinja2 template file. The [official Jinja2 documentation](https://jinja.palletsprojects.com/en/3.1.x/templates/) will have all the information needed on how to use the Jinja Template engine.
+
+This app makes use of Jinja template files to render HTML in the browser. The `render_template()` function is used to pass _template variables_ like `sdkloaded` from the backend Python code to `loadSDK.html`, which is the front end of the web app that users will see.
+
+It will contain the following code:
+
+```html
+<!DOCTYPE html>
+<html>
+<!-- code omitted -->
+  <body>
+    {% if sdkloaded == True %}
+      <h1 style="color: #0e0c36">⚡Foxit PDF SDK loaded successfully!⚡</h1>
+      <h2 style="color: #f36b16">Welcome To The PDF App</h2>
+      <a href={{url_for('selectFile')}}>CONTINUE</a>
+    {% elif sdkloaded == False %}
+      <h1 style="color: #0e0c36">
+        ❌Foxit PDF SDK was not loaded. Verify the SN and KEY.❌
+      </h1>
+    {% else %}
+      <h1 style="color: #0e0c36">
+      ❓Foxit PDF SDK not found. Ensure the Python Library was installed
+      with pip and included in the import statement.❓
+      </h1>
+    {% endif %}
+  </body>
+</html>
+```
+
+The Jinja2 Template Engine is part of the Flask framework. Jinja templates are text files that can generate HTML or other types of file formats. You'll notice that the `loadSDK.html` file contains the usual HTML syntax and also some Jinja2 syntax delimited by the `{% ... %}` construct. This template file conditionally renders a message that indicates if the SDK loaded properly or not.
+
+Going forward, all HTML files will be created in the `templates` folder.
+
+If the SDK loads properly, the application title, a welcome message, and a `CONTINUE` link are displayed.
+
+Flask apps are executed for debugging with the following command:
+
+```bash
+flask --debug run
+```
+
+When this command executes you should see:
+
+```shell
+X:\PYTHON_APP>flask --debug run
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 999-999-999
+```
+
+The app will now be available for testing at the `http://127.0.0.1:5000` address. Open that link in your favorite browser and if all goes well you should see the following text on the webpage:
+
+<!--NON-ANNOTATED-->
+
+![SDK Load Successful](https://i.imgur.com/KfKENtX.png)
+
+### Generate Report in HTML Format
+
+You'll now add functionality to read rows from a CSV file with financial data and generate an HTML page with the rows formatted as a table.
+
+The financial dataset that will be used is the [Supermarket Sales dataset from Kaggle](https://www.kaggle.com/datasets/aungpyaeap/supermarket-sales). Download the ZIP archive and extract the CSV file `supermarket_sales - Sheet1.csv` to a convenient location on your workstation.
+
+One route and two additional functions will be added to the `app.py` file at this stage: `selectFile()` and `loadRowsToHtml()`.
+
+The `CONTINUE` link on the first page of the app links to the `/loadData` URL and triggers the `selectFile()` function.
+
+This is the page that the user will see:
+
+<!--ANNOTATED-->
+
+![Browse Load CSV Publish HTML](https://i.imgur.com/o0lk107.png)
+
+<!--NON-ANNOTATED-->
+
+![Browse Load CSV Publish HTML](https://i.imgur.com/YL0C9tQ.png)
+
+And this is the code for the `selectFile()` function that renders the HTML template:
+
+```python
+# code snippet
+@app.route('/loadData')
+def selectFile():
+    sdkloaded = None
+    code = Library.Initialize(sn, key)
+    if code != e_ErrSuccess:
+        sdkloaded = False
+    else:
+        sdkloaded = True
+    return render_template("selectFile.html", sdkloaded = sdkloaded)
+#code snippet
+```
+
+The `selectFile()` function verifies that the SDK is loaded and will allow the user to browse the filesystem for the `supermarket_sales - Sheet1.csv` file. The template file `selectFile.html`, which lives in the `templates` folder, will present an HTML form with a `Choose File` button that only allows CSV files to be selected by default and a submit button labeled `LOAD ROWS`. This is the code in the `selectFile.html` template file:
+
+```html
+<!DOCTYPE html>
+<!-- code omitted -->
+  <body>
+    <h2 style="color: #f36b16">SELECT CSV FILE:</h2>
+    <form method="POST" action="" enctype="multipart/form-data">
+      {% if sdkloaded == True %}
+      <p><input type="file" name="fin_file" accept=".csv" /></p>
+      <p><input type="submit" value="LOAD ROWS" /></p>
+      {% endif %}
+    </form>
+  </body>
+</html>
+```
+
+This app is designed to only work with the Supermarket CSV Dataset. Once you locate the CSV file downloaded from Kaggle where you saved it, click `LOAD ROWS` and this will trigger the other function `loadRowsToHtml()`:
+
+```python
+@app.route('/loadData', methods = ['POST'])
+def loadRowsToHtml():
+    sdkloaded = None
+    code = Library.Initialize(sn, key)
+    if code != e_ErrSuccess:
+        sdkloaded = False
+    else:
+        sdkloaded = True
+
+    file_to_convert = request.files['fin_file']
+    if file_to_convert.filename != '':
+        file_to_convert.save(file_to_convert.filename)
+        df = pd.read_csv(str(file_to_convert.filename),
+                        nrows=300,
+                        usecols=["Invoice ID", "Product line", "Unit price","Quantity","Total","Date"],
+                        parse_dates=["Date"])
+        total_sales = df["Total"].sum()
+        total_sales = "$ {:,.2f}".format(total_sales)
+        with open('styles.txt', 'r') as myfile: styles = myfile.read()
+        htmlfile = open("export.html","w")
+        htmlfile.write("""<!DOCTYPE html>
+                        <html>
+                        <head>{1}</head>
+                        <body>
+                        <div class="resultTable">
+                        <h1 style="color: #f36b16">SALES REPORT 2019</h1>
+                        <h2 style="color: #f36b16">Total Sales = {3}</h1>
+                        <h3 style="color: #f36b16">Extracted from: {2}</h3>
+                        {0}
+                        </div>
+                        </body>
+                        </html>""".format(df.to_html(classes="resultTable"),
+                                            styles,
+                                            str(file_to_convert.filename),
+                                            total_sales))
+        htmlfile.close()
+
+    return render_template("loadToHtml.html",
+                            filename = str(file_to_convert.filename),
+                            preview_rows = df,
+                            sdkloaded = sdkloaded,
+                            total_sales = total_sales)
+```
+
+The `loadRowsToHtml()` function does a lot: First, it checks that the SDK is loaded, as usual. Then it receives the `fin_file` variable that is passed to it via the `POST` request from the `selectFile()` function. It saves a copy of the CSV file in the root of the app folder, ie, in the same folder as the `app.py` file.
+
+The rows are read into a Pandas Dataframe `df`. Only five of the columns and 300 rows are read into the Dataframe `df` for demonstration purposes. When you run the code, feel free to read all the rows from the CSV file.
+
+This is financial data so it makes sense to calculate the total sales as `total_sales`.
+
+Recall that the aim is to export the rows to an HTML file. An HTML table is the best option to display the rows in a structured and readable manner. A file called `style.txt` was created in the app root folder to contain the CSS table styles.
+
+The `.format()` function is used to construct the HTML code by using placeholders to insert the Dataframe `df` as HTML, the table styles, the `filename`, and the `total_sales` into a string that will be written to a new file on disk called `export.html`.
+
+The `render_template()` function passes several variables to the `loadToHtml.html` template file to enable it to render a preview of the `export.html` file in the browser. Below is the code of the `loadToHtml.html` file:
+
+```html
+<!DOCTYPE html>
+<html>
+<!-- code omitted -->
+  </head>
+  <body>
+    <p>
+      {% if sdkloaded == True %}
+        <a href={{url_for('selectFile')}}>CONTINUE TO GENERATE PDF</a>
+        <h1 style="color: #f36b16">SALES REPORT 2019</h1>
+        <h2 style="color: #f36b16">Total Sales = {{ total_sales }}</h1>
+        <h3 style="color: #f36b16">Extracted from: {{ filename }}</h3>
+        <p>{{ preview_rows.to_html(classes="resultTable") | safe}}</p>
+      {% endif %}
+    </p>
+  </body>
+</html>
+```
+
+The expression `{{ preview_rows.to_html(classes="resultTable") | safe}}` means that the string expression to the left of the reserved word `safe` won't be automatically escaped, which is the default behavior in Jinja templates.
+
+If all goes well, when you click the `LOAD ROWS` button and the `loadRowsToHtml()` function is executed, `loadToHtml.html` will render a preview of the `export.html` in the browser along with a `CONTINUE TO GENERATE PDF` link that will take you to the third and final function to be added to the app.
+
+<!--ANNOTATED-->
+
+![PDF Preview](https://i.imgur.com/PYJ9xX8.png)
+
+<!--NON ANNOTATED-->
+
+![PDF Preview](https://i.imgur.com/npET9MV.png)
+
+### Generate Report in PDF
+
+This is where you invoke the Foxit PDF SDK HTML to PDF functionality to convert the HTML to PDF.
+
+Once the `CONTINUE TO GENERATE PDF` link is clicked it will trigger the `htmlToPdf()` function:
+
+```python
+@app.route('/generatePDF')
+def htmlToPdf():
+    sdkloaded = None
+    code = Library.Initialize(sn, key)
+    if code != e_ErrSuccess:
+        sdkloaded = False
+    else:
+        sdkloaded = True
+
+    html = "X:/path/to/export.html" #change this
+    output_path =  "X:/path/to/Report2019.pdf" #change this
+    engine_path = "X:/path/to/fxhtml2pdf.exe" #change this
+    cookies_path = ""
+    time_out = 50
+
+    pdf_setting_data = HTML2PDFSettingData()
+    pdf_setting_data.page_height = 640
+    pdf_setting_data.page_width = 900
+    pdf_setting_data.page_mode = 1
+    pdf_setting_data.scaling_mode = 2
+
+    Convert.FromHTML(html, engine_path, cookies_path, pdf_setting_data, output_path, time_out)
+
+    doc = PDFDoc("Report2019.pdf")
+    error_code = doc.Load("")
+    if error_code!= e_ErrSuccess:
+        return 0
+
+    settings = WatermarkSettings()
+    settings.flags = WatermarkSettings.e_FlagASPageContents | WatermarkSettings.e_FlagOnTop
+    settings.offset_x = 0
+    settings.offset_y = 0
+    settings.opacity = 50
+    settings.position = 1
+    settings.rotation = -45.0
+    settings.scale_x = 8.0
+    settings.scale_y = 8.0
+
+    text_properties = WatermarkTextProperties()
+    text_properties.alignment = e_AlignmentCenter
+    text_properties.color = 0xF68C21
+    text_properties.font_style = WatermarkTextProperties.e_FontStyleNormal
+    text_properties.line_space = 2
+    text_properties.font_size = 14.0
+    text_properties.font = Font(Font.e_StdIDTimesB)
+    watermark = Watermark(doc, "CONFIDENTIAL", text_properties, settings)
+
+    nPageCount = doc.GetPageCount()
+    for i in range(0, nPageCount):
+        page = doc.GetPage(i)
+        page.StartParse(PDFPage.e_ParsePageNormal, None, False)
+        watermark.InsertToPage(page)
+    doc.SaveAs("Report2019.pdf", PDFDoc.e_SaveFlagNoOriginal)
+
+    print("Converted HTML to PDF successfully.")
+
+    success = True
+
+    return render_template("generatePDF.html", sdkloaded = sdkloaded, success = success )
+```
+
+After ensuring the SDK is loaded properly, several important variables are defined:
+
+- `html`: the path to the `export.html` generated in the previous step, defaults to the same path as `app.py` (application root). This needs to be changed to the path on your local workstation.
+- `output_path`: the path the PDF file will be generated to, defaults to the same path as `app.py` (application root). This needs to be changed to the path on your local workstation.
+- `engine_path`: the path to _fxhtml2pdf.exe_, which is the HTML to PDF engine package provided by Foxit Support. This must exist for the app to do its job. Once you have received it, set this value. If you got the package, you can extract it to the _engine_ folder which is in the same path as `app.py` (application root).
+- `cookies`: path to the cookies file exported from the URL to convert. This is going to be left empty this time because the HTML page was generated locally.
+- `time_out`: the timeout in seconds to wait for loading the webpage. The HTML page was generated locally so it should rarely exceed this unless it's a large webpage.
+
+Next, the dimensions of the PDF file to be created are set, the PDF will be created as a multi-page document and the contents are rendered big enough to read.
+
+The `Convert.FromHTML()` method is called, which will convert the HTML file to the PDF file. When this executes there will be a new file in the root folder called `Report2019.pdf`.
+
+After its initial creation, the PDF file is again reloaded using the `PDFDoc()` method so that a watermark can be added on each page. The watermark settings such as location, size and opacity are configured first, then the watermark color, font size, and text. In this case the text _CONFIDENTIAL_ will be written across each page, diagonally across the middle.
+
+The watermark is added to each page one by one using the `Watermark()` and `watermark.InsertToPage()` methods. Finally, the PDF is saved again with the new changes, overwriting the previous file with the same name.
+
+If all goes well, you should see a success message on the next template page `generatePDF.html` after a few minutes:
+
+```html
+<!DOCTYPE html>
+<html>
+  <!-- code omitted -->
+  <body>
+    {% if success == True %}
+    <h3 style="color: #f36b16">
+      PDF SUCCESSFULLY GENERATED TO Report2019.pdf IN APPLICATION ROOT
+    </h3>
+    {% endif %}
+  </body>
+</html>
+```
+
+Rendered in the browser it will look like the following:
+
+<!--ANNOTATED-->
+
+![PDF Generated Successfully](https://i.imgur.com/Au5iC7F.png)
+
+<!--NON-ANNOTATED-->
+
+![PDF Generated Successfully](https://i.imgur.com/QnbiboX.png)
+
+The new PDF file along with the watermarks will be in the application root folder, ie, the same folder with the `app.py` file. Here is a preview:
+
+<!--NON-ANNOTATED-->
+
+![Final Generate PDF](https://i.imgur.com/PaJ6X5K.png)
+
+In the end, this is what root of the app folder should look like:
+
+<!--ANNOTATED-->
+
+![App Root Folder](https://i.imgur.com/N2pLeLn.png)
+
+<!--NON-ANNOTATED-->
+
+![App Root Folder](https://i.imgur.com/DdsUTCv.png)
+
+## Wrapping Up
+
+You just created a PDF app using Python and the Foxit PDF SDK. Congratulations! You learned:
+
+- How to create a Flask Web app and make use of Jinja2 templates to render HTML in the browser
+- How to check if Foxit PDF SDK is loaded properly
+- How to publish an HTML file from a CSV file using the Pandas library
+- How to generate a PDF file from an HTML file using the Foxit PDF SDK
+- How to add watermarks to a PDF document using the Foxit PDF SDK
+
+The full code can be found in [this Github Repo](https://github.com/devrescue/FlaskHTMLtoPDFFoxit).
+
+Only a fraction of the full potential of the PDF SDK was explored in this article. The [Developer's Guide](https://developers.foxit.com/platform-page-windows/) details all the other capabilities of the Foxit PDF SDK.
+
+Foxit’s PDF SDK is prolific indeed! Regardless of the use case, you will find that it is more than sufficient to meet your PDF handling needs. Be sure to check out their [official website](https://www.foxit.com/). Thanks for reading!
