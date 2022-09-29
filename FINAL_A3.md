@@ -1,0 +1,545 @@
+# Building a SQL Server admin panel in Retool
+
+Microsoft SQL Server also known as MS SQL Server or simply as MSSQL, is a relational database management system (RDBMS). Beginning its life in the late 1980s, it has grown to become one of the world's most popular and trusted database solutions for large scale enterprise use. It now features a range of supporting services beyond the traditional RDBMS including machine learning, high availability, analytics, enhanced security and performance and more in both on-premises and cloud implementations. The latest release of MSSQL, [SQL Server 2022](https://learn.microsoft.com/en-us/sql/sql-server/what-s-new-in-sql-server-2022?view=sql-server-ver16), is in the preview stage as of this writing.
+
+Retool is a platform that provides components and controls for rapid development of internal tools with rich user experiences. Internal tools such as Admin Panels are what empower operators, administrators, analysts, managers and executive staff to manage data and system configurations, monitor real-time operations or perform any other critical administrative function.
+
+In this article you will connect Retool to a SQL Server 2022 instance and build an Admin Panel using Retool forms and GUI components to perform CRUD (create, read, update and delete) operations on some sample data.
+
+You will proceed in the following sequence:
+
+- Acquire the Prerequisites
+- Provision Ubuntu VM On Google Cloud with SQL Server 2022 running in a Docker Container
+- Load Sample Data into SQL Server 2022 instance
+- Build out Retool Admin Panel
+
+## Prerequisites
+
+You will need to set up the following before moving forward:
+
+- Google Cloud Platform (GCP) Account
+- Retool Account
+
+### GCP Account Setup and VM Provisioning
+
+You will require a GCP account to provision your SQL Server 2022 (Preview) instance. Specifically, you will launch an instance of SQL Server as a Docker Container on the Ubuntu 20.04 LTS operating system.
+
+There are many ways you can provision SQL Server using other cloud providers such as AWS and Microsoft Azure but for this article GCP will be used. Also, because of the [SQL Server System Requirements](https://learn.microsoft.com/en-us/sql/sql-server/install/hardware-and-software-requirements-for-installing-sql-server-2019?view=sql-server-ver16) for disk space and memory, finding a completely Free Tier with these specs on any of these platforms would prove difficult.
+
+Fortunately, GCP has [a free trial offer](https://cloud.google.com/free/docs/free-cloud-features#free-trial) for customers that meet the eligibility criteria. The trial runs for a 90-day period that includes USD $300 worth of free Cloud Billing credits. This offer should be more than sufficient to complete the example in this article and perform any other experiments you may have planned on GCP.
+
+You will require a [free Google Account](https://accounts.google.com/SignUp) to [sign in to GCP](https://console.cloud.google.com) and claim the free credits, if you don't already have one. Once you have signed up and logged into the GCP console you then need to create a Linux VM instance on the Compute Engine. The exact steps will be detailed in the [GCP guide](https://cloud.google.com/compute/docs/create-linux-vm-instance) but the broad steps are as follows:
+
+1. Create a Google Cloud project.
+2. Enable the Compute Engine API to allow VMs to be created.
+3. Create a Linux VM running the Ubuntu 20.04 LTS operating system.
+
+The GCP guide will list all individual steps:
+
+![GCP VM Setup Guide](https://i.imgur.com/5Tt7Cpa.png)
+
+<!--![GCP VM Setup Guide](https://i.imgur.com/K2G4sZm.png) NON-ANNOTATED-->
+
+Alternatively the GCP guide gives you the option of the assisted setup which may be a bit easier and faster:
+
+![Assisted VM Setup](https://i.imgur.com/HlTI74B.png)
+
+<!--![Assisted VM Setup](https://i.imgur.com/IgcWOuQ.png) NON-ANNOTATED-->
+
+Step 1 and 2 are both straightforward and simple. For this article, the most important is step 3, the creation of the VM, because the requirements here are specific. When you click the **Go to Create an instance** button to launch the VM setup or proceed through the assisted setup to the **Create a Linux VM instance** step, you will be asked to provide details for the VM to be created:
+
+![Enter VM Details](https://i.imgur.com/pLIK1IR.png)
+
+<!--![Enter VM Details](https://i.imgur.com/2tDgBxK.png) NON-ANNOTATED-->
+
+You will now fill in the following details:
+
+- Fill in the instance `Name` with a suitable identifier for the VM and select a `Region` and `Zone` closest to you.
+- In the `Machine Configuration Section`, select the `General-Purpose` Machine Family, then select `E2` under `Series` and `e2-medium` under `Machine type`. The [e2-medium machine type](https://cloud.google.com/compute/docs/general-purpose-machines#e2-shared-core) with its 4GB and 2 vCPUs is more than sufficient to run MSSQL.
+- Under the very important `Boot Disk` section click the `CHANGE` button which should launch another window. In this new window be sure to select `Ubuntu` for the `Operating System`, `Ubuntu 20.04 LTS` for the `Version` and `Balanced Persistent Disk` for the `Boot Disk Type`. Enter a value of 10 or higher for the `Size (GB)` because MSSQL requires a minimum of 6GB available hard-disk space.
+
+![Select OS Type](https://i.imgur.com/lx1dOPf.png)
+
+<!--![Select OS Type](https://i.imgur.com/XstZUtt.png) NON-ANNOTATED -->
+
+- Next, check `Allow HTTP traffic` under the `Firewall` section.
+- Every other setting here is fine with the default values. When you are ready to proceed click `CREATE` to begin the VM creation.
+
+When the VM creation is complete you should be redirected to or receive a link to the `VM Instances` page. If not, it may be found by using the left navigation menu, going to `Compute Engine` and then `VM Instances` under the `VIRTUAL MACHINES` section. You should see the newly created VM:
+
+![VM Instances](https://i.imgur.com/zmhDKOr.png)
+
+<!--![VM Instances](https://i.imgur.com/WPtNTFF.png) NON-ANNOTATED-->
+
+Remember the `External IP` value. This is address that will be used to connect to the SQL instance on the VM.
+
+When you launch a new SSH session in a new browser window, you should see the following at the terminal. This means you successfully provisioned the VM:
+
+```shell
+Welcome to Ubuntu 20.04.5 LTS (GNU/Linux 5.15.0-1017-gcp x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+  System information as of Tue Sep 27 06:57:44 UTC 2022
+
+...
+
+New release '22.04.1 LTS' available.
+Run 'do-release-upgrade' to upgrade to it.
+
+
+Last login: Mon Sep 26 22:52:17 2022 from XX.XXX.XXX.XX
+user@vmname:~$
+```
+
+This is the terminal where you will issue commands to set up Docker and the SQL container.
+
+The next step would be to set up the MSSQL 2022 Docker container, which will be covered in an upcoming section.
+
+### Create a Retool Account
+
+Navigate to the [official Retool website](https://retool.com/). You should see one button on the upper right hand corner called `Start for free` or near the middle of the page called `Try Retool for free`, either one will take you to the sign up form:
+
+![Retool Sign Up](https://i.imgur.com/sSH6mQR.png)
+
+After you enter your details and click `Sign up` or if you choose to `Sign up with Google`, you will be taken to another page to create your Retool workspace which is required to sign in to Retool:
+
+![Create Retool Workspace](https://i.imgur.com/kQwRBjd.png)
+
+When you define a suitable and available Team URL, click Continue to move on. On the next page you will notice that the URL in the address bar has changed to the URL you just defined. You will return to this page to start creating your Admin Panel in an upcoming section, so save the URL.
+
+## Set up SQL Server 2022 Docker Container instance
+
+Now that the VM is up and running, you must now install the Docker engine. Docker is a popular system used to containerize applications. Containers are self contained executable packages that contain an application and all its dependencies.
+
+The full guide to [install Docker engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) contains all of the instructions and terminal commands to get Docker installed and running.
+
+Once Docker is up on the VM, you must now download the free SQL Server 2022 preview container from the [official DockerHub repo](https://hub.docker.com/_/microsoft-mssql-server). You can do this with the following terminal command:
+
+```bash
+sudo docker pull mcr.microsoft.com/mssql/server:2022-latest
+```
+
+The identifier `mcr.microsoft.com/mssql/server` is the container image and `2022-latest` is the tag for the specific SQL version. After the container image is downloaded, issuing a `docker images` command at the terminal to view all container images will return something similar to the following:
+
+```bash
+username@vmname:~$ sudo docker images
+REPOSITORY                       TAG           IMAGE ID       CREATED         SIZE
+mcr.microsoft.com/mssql/server   2022-latest   97XXXXXXXXX   5 weeks ago     1.6GB
+mcr.microsoft.com/mssql/server   2019-latest   e3XXXXXXXXX   2 months ago    1.47GB
+hello-world                      latest        feXXXXXXXXX   12 months ago   13.3kB
+```
+
+Next, you will issue the `docker run` command to start the container:
+
+```bash
+sudo docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=XXXXXXXXXX" \
+   -p 1433:1433 --name container_name --hostname vm_name \
+   -d \
+   mcr.microsoft.com/mssql/server:2022-latest
+```
+
+The `-e` option is used to set two mandatory environment variables for the container: the EULA agreement and the SA Password. The `ACCEPT_EULA` variable must always be `Y` and the `MSSQL_SA_PASSWORD` is the SQL SA password and it must be set to a reasonably strong value because it has full permissions to all databases on the SQL instance. **Also be sure to remember the password you use here for later**.
+
+The `-p` option binds port 1433 of the host to port 1433 of the container. Because this is a SQL Server container the standard SQL Server port for connections is used.
+
+The `--name` option is the custom name for the container.
+
+The `--hostname` option is the host name of the container or the name you give to the VM when you first set it up.
+
+The option `-d` runs the container in the background and prints only the container ID.
+
+When the above command executes successfully the first time, the Container ID should be returned in the terminal. Issuing the following `docker ps -a` commmand should show all running containers:
+
+```bash
+username@vmname:~$ sudo docker ps -a
+CONTAINER ID  IMAGE                                      ... PORTS                                      NAMES
+74XXXXXXXXX   mcr.microsoft.com/mssql/server:2022-latest ... 0.0.0.0:1433->1433/tcp, :::1433->1433/tcp  containername
+```
+
+As expected, the container is using port 1433 which would allow you to connect to it remotely if the firewall allows.
+
+On subsequent occasions, you only need to run the `sudo docker start <container_id>` command to start the container from a stopped state and the `sudo docker stop <container_id>` to stop it.
+
+To connect to this instance, database and data from your desktop or Retool you will need to create a new firewall rule in GCP. To do this, navigate back to the GCP console to the `VM instances` page from earlier. There is a search bar at the top where you will enter the word `firewall`. The search should return in its results `Firewall VPC Network` under the Products and Pages section, click it:
+
+![GCP VM Firewall](https://i.imgur.com/6YHvf23.png)
+
+<!--![GCP VM Firewall](https://i.imgur.com/b5pyfnU.png) NON-ANNOTATED-->
+
+Then when the Firewall page comes up click `CREATE FIREWALL RULE` to create a new firewall rule:
+
+![Create Firewall Rule](https://i.imgur.com/r3Pb94U.png)
+
+<!--![Create Firewall Rule](https://i.imgur.com/nyumOP4.png) NON-ANNOTATED-->
+
+You will now fill in the form details of this new rule. Give it a suitable `Name` and `Description`. Next, ensure that `Source Filter` has `IPv4 ranges` selected. Finally under `Protocols and Ports` the `Specified protocols and ports` radio button is selected, check the `TCP` box and enter port number `1433` as the port number. Everything else retains default settings, then you click `CREATE` to create the rule. If you navigate back to the `Firewall` page you should see the new rule in the list of rules under the `VPC firewall rules` section:
+
+![All Firewall Rules](https://i.imgur.com/bnAaTSJ.png)
+
+<!--![All Firewall Rules](https://i.imgur.com/6qwicF9.png) NON-ANNOTATED-->
+
+Recall that port 1433 was used because that was the VM port that was mapped to the container port 1433 and also because it is the standard SQL port for incoming connections.
+
+Leave the other firewall rules as they are. They should be sufficient to allow Retool to connect to the SQL instance on the VM when the time comes.
+
+Now that the SQL instance is up and running you can try connecting! Remember that `External IP` from earlier and the SA password? You will now use both to test the connection to the SQL instance.
+
+There are many ways you can connect to the instance but [using the SSMS tool](https://learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms?view=sql-server-ver16) is one of the most popular. Download and install the SSMS tool to your desktop if you haven't already done so. Then open up a new connection by navigating to `File` and then `Connect Object Explorer...` in the top menu bar. This will open up a new window where you will enter the connection information:
+
+![Connect to SQL Instance on VM](https://i.imgur.com/IwoHnPk.png)
+
+The _Server Name_ value will be the `External IP` for the Ubuntu VM on GCP. The _Authentication_ method will be _SQL Server Authentication_. The _Login_ will be simply _sa_ and the password will be the password that you supplied for the `MSSQL_SA_PASSWORD` environment variable when you created the docker container. If all goes well, clicking _Connect_ should connect you to the SQL instance on the VM and you should see it in the _Object Explorer_ of the SSMS tool:
+
+![SQL Instance in Object Explorer](https://i.imgur.com/i0oNJ9d.png)
+
+The next step would now be to load the sample data into a new database on this instance which you will do in the next section.
+
+## Load Sample Data into SQL Server 2022 instance
+
+The sample data used will be the [US National Parks Visitors Data](https://data.world/kevinnayar/us-national-parks) from data.world.
+
+A [Github repo](https://github.com/devrescue/RetoolMSSQLDBSetup) was prepared with a SQL script to load a subset of this data into a new SQL database called `RetoolSampleDataDB`.
+
+Create a new SSH session into the Ubuntu VM, and do a `git clone` of the repo. Fortunately the git tool should already be installed on the VM. Navigate to the new `RetoolMSSQLDBSetup` folder when the clone completes and you will see a single file called `setup.sql` which is a SQL script that creates the database objects and loads the data.
+
+Copy the file from this location into the running container with the following command at the terminal:
+
+```bash
+sudo docker cp setup.sql container_name:/setup.sql
+```
+
+Replace the `container_name` with the actual name of your container.
+
+Next, open a new shell into the running container with the following command. You will need to do this so you can run the script you just copied:
+
+```bash
+sudo docker exec -it  -w / container_name "bash"
+```
+
+This command will open a new `bash` shell in the running SQL 2022 container at the root folder location `/`. Remember to change the `container_name` to the actual one you created.
+
+When executed the prompt will change to look like the following, which indicates the shell was successfully created:
+
+```bash
+mssql@container_name:/$
+```
+
+Do a directory listing with the command `ls -al` to ensure that the `setup.sql` file did indeed copy successfully. If it did, you should see it by name.
+
+Finally you will execute the `setup.sql` script using the [sqlcmd utility](https://learn.microsoft.com/en-us/sql/tools/sqlcmd-utility?view=sql-server-ver16) in the container with the following command:
+
+```bash
+/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P 'XXXXXXX' -i setup.sql
+```
+
+The identifier `localhost` refers to the default SQL instance. Substitute the `XXXXXXXX` for the actual SA password. If all goes well the script should execute and you should see messages that indicate that database rows are being created. When the execution completes you should be returned to the container terminal prompt. Exit this command prompt with the `exit` command to return to the Ubuntu VM default prompt.
+
+Refresh the database connection in the SSMS tool to see the new database created. Navigating into the new database you will see one new table `NationalParkList`.
+
+Now that you have loaded the data, you will now begin creating your Admin Panel in Retool.
+
+## Build out Retool Admin Panel
+
+Navigate back to Retool using the Team URL you generated earlier at sign up. It should look something like `https://XXXXXXX.retool.com/`.
+
+On the landing page, look for the _Resources_ tab at the top on the left next to the _Apps_ tab. This should take you to a new page titled _Resources_. Locate the big blue _Create new_ button, click it, then select the _Resource_ option.
+
+A new page called _Connect a resource_ will come up. Under the _Select a resource type_ you will select _Microsoft SQL_. This will take you to a page with a form called _Configure Microsoft SQL_ where you will set up the connection between your SQL instance and Retool:
+
+![Configure MSSQL Connection](https://i.imgur.com/k37Z1mJ.png)
+
+<!--![Configure MSSQL Connection](https://i.imgur.com/2Z62C8l.png) NON-ANNOTATED -->
+
+Enter any _Name_ you find suitable. The _Host_ will be the external IP of the Ubuntu VM, _Port_ is 1433, _Database name_ is _RetoolSampleDataDB_, _Database username_ is _sa_ and the _Database password_ is the SA password you created before.
+
+If all goes well, when you click the _Test Connection_ button you will see a _Connection Success_ message and you can then click the blue _Create resource_ button.
+
+If the resource creation was successful a _Resource created_ message prompt will be shown and you will be given the option to create an app that references the database resource you just created. Click the blue _Create an app_ button.
+
+At the next prompt that is shown, enter the _National Park Visitors Admin Panel_ for the _App name_ and then click the _Create app_ button to create the app. You will then be taken to the Retool App Editor to build your Admin Panel.
+
+It is strongly recommended that you browse the [Retool App Editor docs](https://docs.retool.com/docs/app-editor) for a full explanation of the App Editor interface and its various sub-sections. This tool will be heavily used in the upcoming sections. The right hand panel with its _Component_, _Create_ and _Inspect_ are very important to what you will build.
+
+![The App Editor](https://i.imgur.com/2PjK4XE.png)
+
+<!--![The App Editor](https://i.imgur.com/JzcfT9e.png) NON-ANNOTATED-->
+
+### Add Title, Table to View Rows and Statistics
+
+The first thing you will do is add a title to the admin panel. Look for the _Text_ component on the Right Panel and drag it onto the Header section of the canvas. When you do this the component changes to Inspect mode and you can give the component a name and change its value. Standard Markdown syntax can be used here for the component value so use the following for the Title:
+
+```markdown
+# 🌲National Park Visitors Admin Panel🌲
+```
+
+Try to get the text component as centered as possible using the Layout Alignment option and use the handles to adjust the size.
+
+Next you will add a new query in the bottom panel to show all the rows in the dataset. There should be one there already, rename it to `listAllRows`, ensure that SQL mode is selected and type the following query in the text area:
+
+```sql
+select * from NationalParkList
+```
+
+This is a basic select query against the `NationalParkList` table.
+
+Now drag the _Table_ component from the right panel on to the canvas. The default name will be _table1_. The component should automatically use the `listAllRows` query you just defined as its source data. If not, enter the following code in the _Data_ field of the component's inspect mode:
+
+```javascript
+{
+  {
+    listAllRows.data;
+  }
+}
+```
+
+You should recognize the above as Javascript. In Retool, anything inside the `{{ }}` construct is Javascript. See the [official Retool Javascript docs](https://docs.retool.com/docs/javascript-overview) for more.
+
+You will now add three statistics components that will provide a sum of the `park_visitors`, `park_area_acres` and `park_area_sq_km` columns as figures at the top of the admin panel.
+
+Drag three statistics components from the right panel onto the canvas. You can scroll down to find them or simply search for them by name in the search bar of the right panel.
+
+The label of the first statistic component is **Total Annual Visitors for All Parks** and the _Primary value_ will be the following Javascript code:
+
+```javascript
+{
+  {
+    table1.data.park_visitors.reduce((x, y) => x + y, 0);
+  }
+}
+```
+
+The `reduce()` javascript function will return the sum of all the elements of an array, which is exactly the desired sum in this case.
+
+_table1_ is the table component you created earlier and `park_vistors` is the column of the table that will be summarized via addition to provide the value displayed.
+
+Similarly, the other two statistic components both labelled **Total Area of Parks**, the _Primary value_ to calculate the total sum in Acres will be:
+
+```javascript
+{
+  {
+    table1.data.park_area_acres.reduce((x, y) => x + y, 0);
+  }
+}
+```
+
+The above summarizes the `park_area_acres` column of the table component.
+
+And the total sum in Square Kilometers will have the _Primary value_:
+
+```javascript
+{
+  {
+    table1.data.park_area_sq_km.reduce((x, y) => x + y, 0);
+  }
+}
+```
+
+The above summarizes the `park_area_sq_km` column of the table component.
+
+If all went well, you will see a title, three statistics components and a table component showing rows of data from the SQL database:
+
+![Step 1 Create Table](https://i.imgur.com/MqxLoSn.png)
+
+<!--![Step 1 Create Table](https://i.imgur.com/fDTvQal.png) NON-ANNOTATED-->
+
+### Add a Form to Add New Records
+
+Next you will drag a form component from the right panel onto the canvas.
+
+In the middle of this new form component you will see a link _generate form from data_. Click it and a new _Form Generator_ window will come up. Select the SQL database resource you created before from the _Source_ pick list and the data source column list will be returned:
+
+![The Form Generator](https://i.imgur.com/plp5XlP.png)
+
+Before you click the blue _Generate form_ button, make sure your rows are ordered, labelled and that the input type is the same as above. When you are sure all is well, click _Generate form_ to continue.
+
+Now you will make several changes to the form component to enable it to add new records. Change the form title to the following value:
+
+```markdown
+#### Create, Update or Delete Rows
+```
+
+Eventually this form will be able to accomplish all three, but for now you are configuring the form to do insertion of new rows only.
+
+Change the value of the _ID_ field on the form to the following Javascript code:
+
+```javascript
+{
+  {
+    parseInt(Math.max(...listAllRows.data.ID)) + 1;
+  }
+}
+```
+
+This will enable a default value for the _ID_ field which will increment automatically by 1 to ensure that it is unique for every new row inserted.
+
+Next you will change the Default value and the Format of the _DATE ESTABLISHED_ form field to _2/2/1919_ and _M/d/yyyy_ respectively.
+
+Next you will edit the form query to ensure that it works for insertions. On the lower left panel, there is a _Code_ section where a new query will appear below the one you already created. It should be called `form1SubmitToDboNationalParkList` by default or similar (the one in the screenshot is called `form1SubmitToDboNationalParkList2`). It was automatically created when you created the form. Make sure that it appears as follows, with all the same values selected:
+
+![Form Query](https://i.imgur.com/Dlx2oTS.png)
+
+The _GUI Mode_, _Table_, _Action type_ and _Changeset_ should be set exactly as above:
+
+The Changeset text is as follows for your reference:
+
+```javascript
+{
+  {
+    form1.data;
+  }
+}
+```
+
+Next click on the _Submit_ button on the form and change to inspect mode. Under the _Event handlers of form1_, click the box and ensure the values are the same as below:
+
+![Edit Submit Handler](https://i.imgur.com/Qa4i2p6.png)
+
+The _Query_ must be set to the same query that was created when you created the form.
+
+If all goes well, when you switch to preview mode by clicking the _Preview_ button on the upper right hand side you should see the following:
+
+![Add New Rows](https://i.imgur.com/s8uo9KB.png)
+
+<!--![Add New Rows](https://i.imgur.com/9GMik8g.png) NON-ANNOTATED -->
+
+When you add new data in the form fields and click _Submit_ the new data should be added to the table in your SQL database and a short _Query ran successfully_ message should flash at the top of the Panel. Be sure to refresh the table using the refresh button on the lower right hand side to see the newly added rows and also to update the default _ID_ value.
+
+Click the _Edit app_ button on the upper right hand side where the _Preview_ button was to return to the Editor.
+
+### Update and Delete Records
+
+Next you will update the _Initial data_ value of the form you just created, _form1_. Click the form, enter inspector mode and update this value to the following javascript code:
+
+```javascript
+{
+  {
+    table1.selectedRow.data;
+  }
+}
+```
+
+This will allow the form to show the field values of any selected row in the table you created, _table1_.
+
+Then click _table1_, go to inspect mode and look for the _Allow clear selection from the toolbar_. Toggle this from off to on.
+
+When you enter Preview mode to test this you will find that the form values change depending on what row is selected. You can transition from this back to adding new rows by clicking the new link at the bottom of _table1_ labelled _Clear selection_.
+
+You will now change the form query settings to allow updating of existing rows.
+
+![Allow Row Updates](https://i.imgur.com/VW7IbXp.png)
+
+<!--![Allow Row Updates](https://i.imgur.com/GDG6088.png) NON-ANNOTATED-->
+
+Change the settings to what is pictured above for the `form1SubmitToDboNationalParkList` (or similar) query.
+
+This simple change will allow you to update existing rows in addition to adding new rows. When you go into _Preview_ mode you should be able to make changes to existing rows by clicking them in the table, editing the values in the form and then clicking _Submit_. If the query was successful, when you refresh you should see the updated value in both the form and the table. Neat right?
+
+Now you will create a new query to delete a row. On the left hand panel in the _Code_ section, click the `+` sign to open up a mini-menu and select _Resource query_. Name it whatever your wish but in this article it will be called `deleteSingleRow`. Ensure the settings are as follows:
+
+![Delete Single Row Query](https://i.imgur.com/KxOPcGP.png)
+
+<!--![Delete Single Row Query](https://i.imgur.com/b7oOXg8.png) NON-ANNOTATED-->
+
+The expression filters on the `ID` of the row to ensure that only that unique record is deleted:
+
+```javascript
+{
+  {
+    table1.selectedRow.data.ID;
+  }
+}
+```
+
+Now add a button that references the delete query. Drag and drop a button component from the right panel name it `Delete This` and edit the click handler in the inspector to look like the following:
+
+![Delete Button Handler](https://i.imgur.com/osaLEGV.png)
+
+Ensure that the _Query_ field is set to the name of the delete query you just built. When this is done, go into _Preview Mode_ to test the changes. You should be able to Add, Edit and Delete rows at this point. Awesome!
+
+### Final Touches
+
+Three further optimizations you can now add to your Admin Panel are to allow the picture preview in the `pic_url` database field to be shown, to allow map information to be shown and to automatically refresh the table after a new record is added or updated.
+
+Drag an image component from the right panel to the space directly under the table component to the left of the admin panel. In inspect mode, change the _Image source_ value to the following:
+
+```javascript
+{
+  {
+    table1.selectedRow.data.pic_url;
+  }
+}
+```
+
+In _Preview_ mode this will allow this control to show the image at the URL specified in the `pic_url` database table column. It will change depending on the row selected also.
+
+Next drag a Mapbox component on to the canvas. By default it is called _mapboxMap1_. Position it just below the image component. In the inspector mode, change the value for the map _Latitude_ to the following:
+
+```javascript
+{
+  {
+    table1.selectedRow.data.park_lat;
+  }
+}
+```
+
+And the value for the map _Longitude_ will be:
+
+```javascript
+{
+  {
+    table1.selectedRow.data.park_long;
+  }
+}
+```
+
+Change the _Zoom_ value to 2 and change the _Points_ value to the following:
+
+```javascript
+{
+  {
+    [
+      {
+        longitude: table1.selectedRow.data.park_long,
+        latitude: table1.selectedRow.data.park_lat,
+      },
+    ];
+  }
+}
+```
+
+And now change the _Marker_ to something suitable. The ❌ symbol was used in this example.
+
+Switching to _Preview_ mode, you will now see an actual world map zoomed in and marked by the ❌ symbol on the location of the `park_lat` and `park_long`. When you change the selection on the table component, the map should also change to show that new location. Impressive!
+
+Finally, change the Success event handler for the form query (`form1SubmitToDboNationalParkList` or similar) to be the same as for the _Delete This_ button you just created. Select the query in the lower left panel and change the value for _Query_ in the bottom panel Success event handler to the following:
+
+```javascript
+listAllRows.trigger();
+```
+
+Also change the text of the button from _Submit_ to _Add or Edit Row_.
+
+Now that the Admin Panel is fully built out, it should look like the following:
+
+![Complete Admin Panel](https://i.imgur.com/YvB3y9Z.png)
+
+## Wrapping Up
+
+What a journey! You learned:
+
+- How to set up an Ubuntu VM on the Google Cloud Platform and configure for remote access
+- How to provision an instance of SQL Server 2022 Preview as a Docker container on an Ubuntu VM
+- How to load sample data into a Docker container instance of SQL Server 2022 Preview
+- How to create an account on the Retool platfrom and create a Microsoft SQL database source for an Admin Panel app.
+- Rapidly build out an Admin Panel in Retool that displays summary statistics and allows browsing, editing and deletion of rows in a SQL database by using Retool UI components and javascript code.
+
+Consult the official [Retool online documentation](https://docs.retool.com/docs) for further details on any aspect of the Retool platform.
+
+The app that you built was done on the online Retool platform but Retool also offers a [self-hosted solution](https://retool.com/self-hosted/) to allow implementation on your own infrastructure if you desire.
+
+Also check out the [ready-made templates](https://retool.com/templates/) that can get you up and running quickly.
+
+Moreover, if you are looking for an easy to use, drag-and-drop platform with rich UI components for rapid development of custom internal tools, please consider Retool. Happy coding and thanks for reading.
